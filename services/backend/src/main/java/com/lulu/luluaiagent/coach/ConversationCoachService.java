@@ -2,7 +2,9 @@ package com.lulu.luluaiagent.coach;
 
 import com.lulu.luluaiagent.advisor.ChatLoggingAdvisor;
 import com.lulu.luluaiagent.memory.RelationshipMemoryService;
+import com.lulu.luluaiagent.memory.RelationshipThreadService;
 import com.lulu.luluaiagent.model.ModelRouter;
+import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.Resource;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -17,6 +19,7 @@ import java.util.List;
  * Platform-neutral conversation coaching engine.
  */
 @Service
+@Slf4j
 public class ConversationCoachService {
 
     private final ChatClient chatClient;
@@ -52,6 +55,9 @@ public class ConversationCoachService {
     @Autowired(required = false)
     private RelationshipMemoryService relationshipMemoryService;
 
+    @Autowired(required = false)
+    private RelationshipThreadService relationshipThreadService;
+
     public ConversationCoachService(ModelRouter modelRouter) {
         this.chatClient = ChatClient.builder(modelRouter.coachPrimaryModel())
                 .build();
@@ -65,19 +71,23 @@ public class ConversationCoachService {
                 .get(request.messages().size() - 1)
                 .text();
         String memoryContext = loadMemory(request, latestText);
+        String recentThreadContext = loadRecentThread(request);
         var promptSpec = chatClient
                 .prompt()
                 .system(buildSystemPrompt(memoryContext))
-                .user(buildUserPrompt(request))
+                .user(buildUserPrompt(request, recentThreadContext))
                 .advisors(new ChatLoggingAdvisor());
 
         if (bailianRagEnabled) {
             promptSpec.advisors(relationshipRagAdvisor);
         }
 
-        return promptSpec
+        ConversationCoachResponse response = promptSpec
                 .call()
                 .entity(ConversationCoachResponse.class);
+
+        recordTurn(request);
+        return response;
     }
 
     private void validate(ConversationCoachRequest request) {
@@ -115,20 +125,66 @@ public class ConversationCoachService {
     private String loadMemory(
             ConversationCoachRequest request,
             String latestText) {
+        String personId = StringUtils.hasText(request.personId())
+                ? request.personId()
+                : request.conversationId();
         if (relationshipMemoryService == null
-                || !StringUtils.hasText(request.conversationId())
+                || !StringUtils.hasText(personId)
                 || !StringUtils.hasText(latestText)) {
             return "";
         }
 
         return relationshipMemoryService.buildContext(
-                request.conversationId(),
+                personId,
                 latestText,
                 5);
     }
 
+    private String loadRecentThread(ConversationCoachRequest request) {
+        if (relationshipThreadService == null
+                || !StringUtils.hasText(request.conversationId())) {
+            return "";
+        }
+
+        try {
+            return relationshipThreadService.buildRecentContext(
+                    request.conversationId(),
+                    30);
+        } catch (RuntimeException e) {
+            log.warn("Unable to load relationship thread context: {}",
+                    e.getMessage());
+            return "";
+        }
+    }
+
+    private void recordTurn(ConversationCoachRequest request) {
+        if (relationshipThreadService == null
+                || !StringUtils.hasText(request.conversationId())) {
+            return;
+        }
+        try {
+            String personId = StringUtils.hasText(request.personId())
+                    ? request.personId()
+                    : request.conversationId();
+            String accountId = StringUtils.hasText(request.accountId())
+                    ? request.accountId()
+                    : request.conversationId();
+            relationshipThreadService.recordCoachTurn(
+                    request.conversationId(),
+                    personId,
+                    accountId,
+                    request);
+        } catch (RuntimeException e) {
+            // Memory is supportive context; a write failure must not discard
+            // an otherwise valid reply plan.
+            log.warn("Unable to persist relationship thread turn: {}",
+                    e.getMessage());
+        }
+    }
+
     private String buildUserPrompt(
-            ConversationCoachRequest request) {
+            ConversationCoachRequest request,
+            String recentThreadContext) {
         StringBuilder builder = new StringBuilder();
         builder.append("平台：").append(value(request.platform())).append('\n');
         builder.append("用户：").append(value(request.userAlias())).append('\n');
@@ -139,7 +195,14 @@ public class ConversationCoachService {
                 .append(value(request.goal())).append('\n');
         builder.append("用户平时口吻：")
                 .append(value(request.userStyle())).append('\n');
-        builder.append("\n最近聊天记录：\n");
+
+        if (StringUtils.hasText(recentThreadContext)) {
+            builder.append("\n当前账号此前最近聊天（最多 30 条，仅作局部上下文）：\n")
+                    .append(recentThreadContext)
+                    .append('\n');
+        }
+
+        builder.append("\n本轮新复制的聊天：\n");
 
         List<ConversationCoachRequest.Message> messages =
                 request.messages();

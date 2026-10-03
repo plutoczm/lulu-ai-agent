@@ -1,6 +1,7 @@
 pluginManagement {
     repositories {
-        google()
+        // Official Google CDN fallback for networks where dl.google.com is unavailable.
+        maven("https://edgedl.me.gvt1.com/android/maven2/")
         mavenCentral()
         gradlePluginPortal()
     }
@@ -9,7 +10,8 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()
+        // Official Google CDN fallback for networks where dl.google.com is unavailable.
+        maven("https://edgedl.me.gvt1.com/android/maven2/")
         mavenCentral()
     }
 }

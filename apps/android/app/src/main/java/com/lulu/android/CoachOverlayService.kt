@@ -22,6 +22,7 @@ class CoachOverlayService : Service() {
         const val EXTRA_A = "reply_a"
         const val EXTRA_B = "reply_b"
         const val EXTRA_C = "reply_c"
+        const val EXTRA_CONTACT = "contact_name"
         private const val CHANNEL_ID = "lulu_reply_overlay"
         private const val NOTIFICATION_ID = 3101
     }
@@ -34,6 +35,7 @@ class CoachOverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         ensureNotificationChannel()
     }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
 
@@ -45,17 +47,52 @@ class CoachOverlayService : Service() {
         val a = intent?.getStringExtra(EXTRA_A).orEmpty()
         val b = intent?.getStringExtra(EXTRA_B).orEmpty()
         val c = intent?.getStringExtra(EXTRA_C).orEmpty()
+        val contact = intent?.getStringExtra(EXTRA_CONTACT)
+            ?: IdentityStore.activeIdentity(this)?.displayName
+            ?: "未选择人物 / 账号"
+
         if (a.isBlank() || b.isBlank() || c.isBlank()) {
             showTrigger()
             return START_STICKY
         }
 
-        showOverlay(a, b, c)
+        showOverlay(contact, a, b, c)
         return START_STICKY
     }
 
     private fun showTrigger() {
-        overlayView?.let { runCatching { windowManager.removeView(it) } }
+        removeOverlay()
+
+        val active = IdentityStore.activeIdentity(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+
+        val contactLabel = TextView(this).apply {
+            text = active?.displayName ?: "先建人物 / 账号"
+            textSize = 11f
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(82, 64, 48))
+            setPadding(dp(8), dp(5), dp(8), dp(5))
+            background = rounded(Color.rgb(255, 248, 238), 12f)
+            setOnClickListener {
+                val next = IdentityStore.cycleActiveAccount(this@CoachOverlayService)
+                if (next == null) {
+                    startActivity(
+                        Intent(this@CoachOverlayService, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } else {
+                    Toast.makeText(
+                        this@CoachOverlayService,
+                        "已切换到 ${next.displayName}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    showTrigger()
+                }
+            }
+        }
 
         val trigger = TextView(this).apply {
             text = "噜"
@@ -65,16 +102,37 @@ class CoachOverlayService : Service() {
             background = rounded(Color.rgb(213, 154, 87), 24f)
             elevation = dp(10).toFloat()
             setOnClickListener {
-                val capture = Intent(this@CoachOverlayService, ClipboardCaptureActivity::class.java).apply {
+                if (IdentityStore.activeIdentity(this@CoachOverlayService) == null) {
+                    Toast.makeText(
+                        this@CoachOverlayService,
+                        "请先创建人物并绑定账号",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    startActivity(
+                        Intent(this@CoachOverlayService, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    return@setOnClickListener
+                }
+                val capture = Intent(
+                    this@CoachOverlayService,
+                    ClipboardCaptureActivity::class.java
+                ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivity(capture)
             }
+            layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply {
+                topMargin = dp(5)
+            }
         }
 
+        root.addView(contactLabel)
+        root.addView(trigger)
+
         val params = WindowManager.LayoutParams(
-            dp(52),
-            dp(52),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -84,12 +142,17 @@ class CoachOverlayService : Service() {
             y = dp(150)
         }
 
-        overlayView = trigger
-        windowManager.addView(trigger, params)
+        overlayView = root
+        windowManager.addView(root, params)
     }
 
-    private fun showOverlay(a: String, b: String, c: String) {
-        overlayView?.let { runCatching { windowManager.removeView(it) } }
+    private fun showOverlay(
+        contactName: String,
+        a: String,
+        b: String,
+        c: String
+    ) {
+        removeOverlay()
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -103,10 +166,14 @@ class CoachOverlayService : Service() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = TextView(this).apply {
-            text = "噜噜回复建议 · 点击即复制"
+            text = "$contactName · 噜噜回复建议"
             textSize = 15f
             setTextColor(Color.rgb(82, 64, 48))
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+            )
         }
         val close = Button(this).apply {
             text = "×"
@@ -124,12 +191,13 @@ class CoachOverlayService : Service() {
         root.addView(replyCard("C｜保守", c, Color.rgb(244, 250, 249)))
 
         val note = TextView(this).apply {
-            text = "只复制到剪贴板，不会替你发送。"
+            text = "已结合该联系人的长期记忆与最近聊天。只复制，不会替你发送。"
             textSize = 11f
             setTextColor(Color.rgb(130, 130, 130))
             setPadding(0, dp(6), 0, 0)
         }
         root.addView(note)
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -162,11 +230,21 @@ class CoachOverlayService : Service() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(8) }
         }
+
     private fun copyReply(text: String, key: String) {
         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("噜噜回复$key", text))
-        Toast.makeText(this, "$key 已复制，可回到输入框粘贴", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            this,
+            "$key 已复制，可回到输入框粘贴",
+            Toast.LENGTH_SHORT
+        ).show()
         showTrigger()
+    }
+
+    private fun removeOverlay() {
+        overlayView?.let { runCatching { windowManager.removeView(it) } }
+        overlayView = null
     }
 
     private fun rounded(color: Int, radiusDp: Float) =
@@ -193,9 +271,11 @@ class CoachOverlayService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        val active = IdentityStore.activeIdentity(this)?.displayName
+            ?: "未选择人物 / 账号"
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("噜噜回复建议")
-            .setContentText("A/B/C 三条建议正在当前聊天界面上方显示")
+            .setContentText("当前：$active · 点击悬浮“噜”生成 A/B/C")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(openApp)
             .setOngoing(true)
@@ -203,8 +283,7 @@ class CoachOverlayService : Service() {
     }
 
     override fun onDestroy() {
-        overlayView?.let { runCatching { windowManager.removeView(it) } }
-        overlayView = null
+        removeOverlay()
         super.onDestroy()
     }
 

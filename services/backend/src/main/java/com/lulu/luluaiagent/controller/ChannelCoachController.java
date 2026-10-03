@@ -4,6 +4,7 @@ import com.lulu.luluaiagent.coach.ConversationCoachRequest;
 import com.lulu.luluaiagent.coach.ConversationCoachResponse;
 import com.lulu.luluaiagent.coach.ConversationCoachService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -28,9 +29,19 @@ public class ChannelCoachController {
             @RequestHeader(value = "X-Lulu-Channel-Token", required = false) String token,
             @RequestBody ConversationCoachRequest request) {
         requireChannelToken(token);
+        String fallback = request.conversationId();
+        String personId = StringUtils.hasText(request.personId())
+                ? request.personId()
+                : fallback;
+        String accountId = StringUtils.hasText(request.accountId())
+                ? request.accountId()
+                : fallback;
+
         ConversationCoachRequest scoped = new ConversationCoachRequest(
                 request.platform(),
-                scopeConversationId(request.conversationId()),
+                scopeConversationId(fallback),
+                scopeConversationId(personId),
+                scopeConversationId(accountId),
                 request.userAlias(),
                 request.otherAlias(),
                 request.relationshipStage(),

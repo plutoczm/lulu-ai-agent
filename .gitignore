@@ -16,6 +16,9 @@ data/knowledge/relationship-coach/cloud-state.json
 tools/cloudflared/cloudflared.exe
 tools/cloudflared/cloudflared-linux-amd64
 
+# Project-local toolchains and large downloaded binaries
+.tools/
+
 # Build output and dependency caches
 **/target/
 **/build/
