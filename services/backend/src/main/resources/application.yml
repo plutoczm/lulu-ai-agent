@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: lulu-ai-agent
+  config:
+    import: "optional:file:${LULU_PROJECT_ROOT:../..}/.env.local[.properties]"
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5433}/${POSTGRES_DB:lulu_ai_agent}
+    username: ${POSTGRES_USER:lulu_ai_agent}
+    password: ${POSTGRES_PASSWORD:}
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: qwen-plus
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: qwen3:8b
+    mcp:
+      client:
+        enabled: ${MCP_ENABLED:false}
+        stdio:
+          connections:
+            amap-maps:
+              command: cmd.exe
+              args:
+                - /c
+                - npx.cmd
+                - -y
+                - "@amap/amap-maps-mcp-server"
+              env:
+                AMAP_MAPS_API_KEY: ${AMAP_MAPS_API_KEY:}
+            lulu-image-search-mcp-server:
+              command: java
+              args:
+                - -Dspring.ai.mcp.server.stdio=true
+                - -Dspring.main.web-application-type=none
+                - -Dlogging.pattern.console=
+                - -jar
+                - ${LULU_PROJECT_ROOT:../..}/services/image-search-mcp/target/lulu-image-search-mcp-server-0.0.1-SNAPSHOT.jar
+              env:
+                PEXELS_API_KEY: ${PEXELS_API_KEY:}
+
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+
+app:
+  channels:
+    shared-token: ${LULU_CHANNEL_TOKEN:}
+  auth:
+    session-days: ${APP_AUTH_SESSION_DAYS:30}
+    secure-cookie: ${APP_AUTH_SECURE_COOKIE:false}
+    admin-emails: ${APP_AUTH_ADMIN_EMAILS:}
+    daily-ai-limit: ${APP_AUTH_DAILY_AI_LIMIT:200}
+  models:
+    deepseek:
+      enabled: ${DEEPSEEK_ENABLED:false}
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      model: ${DEEPSEEK_MODEL:deepseek-flash}
+    routes:
+      coach: ${MODEL_ROUTE_COACH:deepseek,dashscope}
+      agent: ${MODEL_ROUTE_AGENT:deepseek,dashscope}
+      fast: ${MODEL_ROUTE_FAST:dashscope,deepseek}
+      memory: ${MODEL_ROUTE_MEMORY:ollama}
+  integrations:
+    baidu-search:
+      enabled: ${BAIDU_SEARCH_ENABLED:true}
+      api-key: ${BAIDU_QIANFAN_API_KEY:}
+      base-url: https://qianfan.baidubce.com/v2/ai_search/web_search
+    bailian-rag:
+      enabled: ${BAILIAN_RAG_ENABLED:false}
+      workspace-id: ${BAILIAN_WORKSPACE_ID:}
+      index-id: ${BAILIAN_INDEX_ID:}
+  memory:
+    pgvector:
+      enabled: ${PGVECTOR_ENABLED:true}
+  codex:
+    command: ${CODEX_COMMAND:codex.cmd}
+    cwd: ${CODEX_WORKDIR:${LULU_PROJECT_ROOT:../..}}
+  rag:
+    local-fallback:
+      enabled: ${LOCAL_RAG_FALLBACK_ENABLED:false}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.lulu.luluaiagent.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+logging:
+  level:
+    org.springframework.ai: DEBUG

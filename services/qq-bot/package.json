@@ -1,0 +1,14 @@
+{
+  "name": "lulu-qq-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "smoke": "node src/smoke.js"
+  },
+  "dependencies": {
+    "@tencent-connect/qqbot-nodejs": "latest"
+  }
+}

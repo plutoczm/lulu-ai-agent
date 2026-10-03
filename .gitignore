@@ -1,37 +1,50 @@
-### CUSTOM ###
+# Local secrets and machine-specific configuration
+.env.local
+.env.prod
 application-local.yml
-tmp
+apps/android/local.properties
 
+# Runtime state
+.run/
+tmp/
+data/auth/chatgpt/
+data/model-settings/
+data/channel-runtime/
+data/knowledge/relationship-coach/cloud-state.json
+
+# Local third-party binaries (keep installed locally, do not version)
+tools/cloudflared/cloudflared.exe
+tools/cloudflared/cloudflared-linux-amd64
+
+# Build output and dependency caches
+**/target/
+**/build/
+**/dist/
+**/dist-ssr/
+**/node_modules/
+**/.gradle/
+*.class
+*.log
+
+# Maven / framework generated files
 HELP.md
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-
-### STS ###
-.apt_generated
-.classpath
+.apt_generated/
 .factorypath
-.project
-.settings
 .springBeans
-.sts4-cache
+.sts4-cache/
 
-### IntelliJ IDEA ###
-.idea
+# IDE / editor
+.idea/
 *.iws
 *.iml
 *.ipr
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
+.classpath
+.project
+.settings/
 .vscode/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

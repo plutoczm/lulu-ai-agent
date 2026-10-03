@@ -1,0 +1,296 @@
+{
+  "source_repository": "https://github.com/shengjidaguai-china/goutoujunshi",
+  "source_commit": "6db7354a4002dc7c448a9c87ffdad8132570c9d3",
+  "license": "MIT",
+  "selection_policy": {
+    "knowledge": "全部 references/knowledge/*.md",
+    "practical": "仅恋爱、沟通、边界、互动直接相关白名单",
+    "excluded": "运行规则、记忆、ChatLab、职场/人脉及泛社交噪声"
+  },
+  "selected_count": 36,
+  "excluded_count": 7,
+  "selected": [
+    {
+      "source": "references/knowledge/01-证据分级与内容边界.md",
+      "output": "knowledge-01-证据分级与内容边界.md",
+      "kind": "knowledge",
+      "chars": 2132,
+      "sha256": "8a299416dc3fcc8f40bc806bffeea39a758f82933090da1ce7afcea69e9b1cab"
+    },
+    {
+      "source": "references/knowledge/02-亲密关系心理学总论.md",
+      "output": "knowledge-02-亲密关系心理学总论.md",
+      "kind": "knowledge",
+      "chars": 2600,
+      "sha256": "4885cba64bf54fd0d4f34f0046f017e07ea1c5b1b3246797dd244f0dd436934e"
+    },
+    {
+      "source": "references/knowledge/03-依恋理论与情绪调节.md",
+      "output": "knowledge-03-依恋理论与情绪调节.md",
+      "kind": "knowledge",
+      "chars": 1869,
+      "sha256": "ead61ebc6804dddfd00baac8024bbb7b5bb9733c43674fe480cf537dbbf1929e"
+    },
+    {
+      "source": "references/knowledge/04-MBTI人格与匹配.md",
+      "output": "knowledge-04-MBTI人格与匹配.md",
+      "kind": "knowledge",
+      "chars": 2017,
+      "sha256": "92992b07c02abecc06221cb4e3fa2ab7e5f192082ae8b56e450cb10f2a916fd0"
+    },
+    {
+      "source": "references/knowledge/05-PUA操控与伦理替代.md",
+      "output": "knowledge-05-PUA操控与伦理替代.md",
+      "kind": "knowledge",
+      "chars": 2540,
+      "sha256": "c40e43c709942945d621633149cd9a00b1d12630cc2366a1f0fd6e1a733e97c7"
+    },
+    {
+      "source": "references/knowledge/06-吸引约会与关系启动.md",
+      "output": "knowledge-06-吸引约会与关系启动.md",
+      "kind": "knowledge",
+      "chars": 2308,
+      "sha256": "28d4139af99449d1a791ecedfc88184def41546cb157bbcc2c7c01476950040f"
+    },
+    {
+      "source": "references/knowledge/07-沟通冲突与修复.md",
+      "output": "knowledge-07-沟通冲突与修复.md",
+      "kind": "knowledge",
+      "chars": 2104,
+      "sha256": "3cad49efeb0353e2048af6612e5f3234c9f59d7666bd15243eeef5a46dcf7d87"
+    },
+    {
+      "source": "references/knowledge/08-同意边界性与亲密.md",
+      "output": "knowledge-08-同意边界性与亲密.md",
+      "kind": "knowledge",
+      "chars": 1983,
+      "sha256": "981d17de766b4143c692ca686fc8958e53b42abff417849b5266c7eddd20c71d"
+    },
+    {
+      "source": "references/knowledge/09-在线约会与数字关系.md",
+      "output": "knowledge-09-在线约会与数字关系.md",
+      "kind": "knowledge",
+      "chars": 2985,
+      "sha256": "30a3c625fa2562499bcfcefc124c16460eb562441a579c33d9eacd2bd98d3275"
+    },
+    {
+      "source": "references/knowledge/10-恋爱哲学.md",
+      "output": "knowledge-10-恋爱哲学.md",
+      "kind": "knowledge",
+      "chars": 2113,
+      "sha256": "0e67a1e374e86825f7a4cf8efcb5961bdf603618d74585d6ec88ab665e02f288"
+    },
+    {
+      "source": "references/knowledge/11-婚姻家庭与生命周期.md",
+      "output": "knowledge-11-婚姻家庭与生命周期.md",
+      "kind": "knowledge",
+      "chars": 2182,
+      "sha256": "9fbe6ac200bc6069356cd5c7bf10d33087608d9b539ca57dcbb90a586184a79e"
+    },
+    {
+      "source": "references/knowledge/12-金钱家务育儿与双方家庭.md",
+      "output": "knowledge-12-金钱家务育儿与双方家庭.md",
+      "kind": "knowledge",
+      "chars": 2215,
+      "sha256": "77b19a075ee6f7b53479217ee4f6922c16b17a8a17c2f8d6486a464118e683e4"
+    },
+    {
+      "source": "references/knowledge/13-现代婚姻变迁史.md",
+      "output": "knowledge-13-现代婚姻变迁史.md",
+      "kind": "knowledge",
+      "chars": 2396,
+      "sha256": "69953d2ca59fe5d9fe00ee9f0efa8bfdf7c84434d1c882639e36632a8cac7f39"
+    },
+    {
+      "source": "references/knowledge/14-社会发展与家庭变迁.md",
+      "output": "knowledge-14-社会发展与家庭变迁.md",
+      "kind": "knowledge",
+      "chars": 2487,
+      "sha256": "5b5903b4847d914f93ca4dd300b2b62aa34ee3959cf5db5d92bc5b2347597e47"
+    },
+    {
+      "source": "references/knowledge/15-分手背叛与关系修复.md",
+      "output": "knowledge-15-分手背叛与关系修复.md",
+      "kind": "knowledge",
+      "chars": 2140,
+      "sha256": "a331cb27273c5ce01cadde0ef6156570430709459f5b2413407e55180fe68152"
+    },
+    {
+      "source": "references/knowledge/16-多元关系与反刻板印象.md",
+      "output": "knowledge-16-多元关系与反刻板印象.md",
+      "kind": "knowledge",
+      "chars": 2171,
+      "sha256": "301538ce3ebf646a88675b1817383836e43f2d5eab5ea72ce3cf0f059c18039f"
+    },
+    {
+      "source": "references/knowledge/17-中国法律安全与危机转介.md",
+      "output": "knowledge-17-中国法律安全与危机转介.md",
+      "kind": "knowledge",
+      "chars": 2395,
+      "sha256": "93230a5e63ae0d2a1bfb5862ae7a7d3b5abd01078193026d31411737cfcadbd1"
+    },
+    {
+      "source": "references/knowledge/18-实用练习与对话卡.md",
+      "output": "knowledge-18-实用练习与对话卡.md",
+      "kind": "knowledge",
+      "chars": 1999,
+      "sha256": "b597cb2a1228a6409e376b4d78be8a37d13a7eba51688af4f31cb62c5322645a"
+    },
+    {
+      "source": "references/knowledge/19-核心书单与论文索引.md",
+      "output": "knowledge-19-核心书单与论文索引.md",
+      "kind": "knowledge",
+      "chars": 5251,
+      "sha256": "9da74e5d2c728663c751703cfe03a13b5b3e84575a5bbcee6c64b880fba9fe86"
+    },
+    {
+      "source": "references/knowledge/20-经典社交体系的机制、证据与风险边界.md",
+      "output": "knowledge-20-经典社交体系的机制、证据与风险边界.md",
+      "kind": "knowledge",
+      "chars": 4449,
+      "sha256": "0618095e55fc39a567b8383ef5918273d785c07de1c7c84faa121cf224abb929"
+    },
+    {
+      "source": "references/practical/万能吵架技巧：理性冲突处理指南.md",
+      "output": "practical-万能吵架技巧：理性冲突处理指南.md",
+      "kind": "practical",
+      "chars": 2623,
+      "sha256": "fe8351cbf02e42e1cc3206340b901b7621ff5549df511cf500ab76ce58baa76f"
+    },
+    {
+      "source": "references/practical/万能夸人的话术技巧：真诚认可的实用指南.md",
+      "output": "practical-万能夸人的话术技巧：真诚认可的实用指南.md",
+      "kind": "practical",
+      "chars": 4301,
+      "sha256": "dfbddc979abed9998c914d3fb9cc81762807cbb47ce8d919803e20a58774e553"
+    },
+    {
+      "source": "references/practical/为他人提供情绪价值：温暖且有效的回应指南.md",
+      "output": "practical-为他人提供情绪价值：温暖且有效的回应指南.md",
+      "kind": "practical",
+      "chars": 4553,
+      "sha256": "61974bd2affe2f965a23593f14896feedd27cb43b2820cf772fcf01793260482"
+    },
+    {
+      "source": "references/practical/主动表达、第一次见面与自然接触.md",
+      "output": "practical-主动表达、第一次见面与自然接触.md",
+      "kind": "practical",
+      "chars": 2577,
+      "sha256": "dd3b79bc1e121c07cff620ad27665a6915ce4a36618cd98967a7137842c8767f"
+    },
+    {
+      "source": "references/practical/公开表达案例的伦理转译.md",
+      "output": "practical-公开表达案例的伦理转译.md",
+      "kind": "practical",
+      "chars": 1154,
+      "sha256": "742e77870e50fca49412168c97d7e12c1656676bac8cf72994638d9751e39949"
+    },
+    {
+      "source": "references/practical/关系投入失衡：互惠判断、降级投入与退出决策.md",
+      "output": "practical-关系投入失衡：互惠判断、降级投入与退出决策.md",
+      "kind": "practical",
+      "chars": 2788,
+      "sha256": "490a4a528947bec023bab69e135e74db56ab23b22f328d4263426bbe7cfba1f4"
+    },
+    {
+      "source": "references/practical/化解尴尬：轻松救场的实用指南.md",
+      "output": "practical-化解尴尬：轻松救场的实用指南.md",
+      "kind": "practical",
+      "chars": 3982,
+      "sha256": "368cda9e09e8719971b96ddffde56652d2bb6efc5ebea3ae428bb8c8965c82a9"
+    },
+    {
+      "source": "references/practical/场景感、松弛感与社交校准：从接话到关系推进.md",
+      "output": "practical-场景感、松弛感与社交校准：从接话到关系推进.md",
+      "kind": "practical",
+      "chars": 2955,
+      "sha256": "95c844f35dbc3b177bc9ff487b321680a5aa697d387e3f204d1fa9a42690105c"
+    },
+    {
+      "source": "references/practical/实战话术编排器：从一句回复到后续分支.md",
+      "output": "practical-实战话术编排器：从一句回复到后续分支.md",
+      "kind": "practical",
+      "chars": 3810,
+      "sha256": "66e63e425b7d4d60185427be3e990eaac59f46a4deaa36220945ec3e29989ec0"
+    },
+    {
+      "source": "references/practical/巧妙接话技巧：让沟通更流畅的实用指南.md",
+      "output": "practical-巧妙接话技巧：让沟通更流畅的实用指南.md",
+      "kind": "practical",
+      "chars": 4104,
+      "sha256": "22b147c53735ae848ff865977f763ff3ee7f28cd45e9079911c51034ac2b8438"
+    },
+    {
+      "source": "references/practical/废话文学回复指南：轻松应对各类场景.md",
+      "output": "practical-废话文学回复指南：轻松应对各类场景.md",
+      "kind": "practical",
+      "chars": 2967,
+      "sha256": "64f69516d0dca707d0221a71846969ffb280dbd66e94b587ff50dba3ab65e8e5"
+    },
+    {
+      "source": "references/practical/提升表达逻辑性：从混乱到清晰的实用指南.md",
+      "output": "practical-提升表达逻辑性：从混乱到清晰的实用指南.md",
+      "kind": "practical",
+      "chars": 4977,
+      "sha256": "8379f79ce561b088f6acb31dd9063534cde08409fcdd65fd92284dca9bad73bf"
+    },
+    {
+      "source": "references/practical/提高气场：从内到外的力量感塑造指南.md",
+      "output": "practical-提高气场：从内到外的力量感塑造指南.md",
+      "kind": "practical",
+      "chars": 3729,
+      "sha256": "4cfa50e3e0b74e6bd6f1eace72ce43e76f04a6bd422d77d235aa2758e37d22d0"
+    },
+    {
+      "source": "references/practical/聊天化被动为主动：引导互动的实用指南.md",
+      "output": "practical-聊天化被动为主动：引导互动的实用指南.md",
+      "kind": "practical",
+      "chars": 4695,
+      "sha256": "3fce95c9a31a17ac226cd785d30e5fa2d8c435285ead89073b0c049e028f3436"
+    },
+    {
+      "source": "references/practical/自然流、内在状态与结构化互动：伦理能力转译.md",
+      "output": "practical-自然流、内在状态与结构化互动：伦理能力转译.md",
+      "kind": "practical",
+      "chars": 2872,
+      "sha256": "a97882b5812ff3ceea655dc5177d04af98b21d7849ce979ccf34d39fac5680ed"
+    },
+    {
+      "source": "references/practical/高情商拒绝他人：体面护边界的实用指南.md",
+      "output": "practical-高情商拒绝他人：体面护边界的实用指南.md",
+      "kind": "practical",
+      "chars": 4881,
+      "sha256": "6a14500c1ae20a1c9eaabaf4a6066d3affc67ea9b3a4f86dc0495b9bda5c8fb3"
+    }
+  ],
+  "excluded": [
+    {
+      "source": "references/practical/00-导读与使用分级.md",
+      "reason": "运行路由/导读，不属于事实知识"
+    },
+    {
+      "source": "references/practical/ChatLab聊天记录分析适配.md",
+      "reason": "工具适配规则，不属于知识库内容"
+    },
+    {
+      "source": "references/practical/托人办事的高效话术指南.md",
+      "reason": "偏通用办事沟通，与恋爱主题弱相关"
+    },
+    {
+      "source": "references/practical/有效拓展人脉：从建立到维护的实用指南.md",
+      "reason": "偏职场/人脉，与恋爱主题弱相关"
+    },
+    {
+      "source": "references/practical/获得领导青睐：从价值匹配到信任建立的实用指南.md",
+      "reason": "职场主题"
+    },
+    {
+      "source": "references/practical/被孤立如何破局：从自我调适到建立连接的实用指南.md",
+      "reason": "泛社交主题，优先控制知识库噪声"
+    },
+    {
+      "source": "references/practical/长期记忆与关系档案.md",
+      "reason": "本地记忆操作规则，不应进入云知识库"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: lulu-image-search-mcp-server
+  config:
+    import: "optional:file:${LULU_PROJECT_ROOT:../..}/.env.local[.properties]"
+  profiles:
+    active: sse
+
+pexels:
+  api-key: ${PEXELS_API_KEY:}
+
+server:
+  port: 8127
