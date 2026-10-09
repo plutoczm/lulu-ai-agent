@@ -24,3 +24,7 @@ android {
         jvmTarget = "17"
     }
 }
+
+dependencies {
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+}

@@ -35,7 +35,7 @@ lulu-ai-agent/
 ┌───────────────────┐        ▼
 │ apps/android      │  ┌──────────────────────┐
 │ WeChat + QQ       ├─▶│ services/backend     │
-│ overlay + copy    │  │ Spring Boot core API │
+│ capture + overlay │  │ Spring Boot core API │
 └───────────────────┘  └──────┬───────┬───────┘
                               │       │
                               │       ├─ PostgreSQL + PGVector
@@ -67,7 +67,8 @@ The backend keeps a feature-oriented package layout:
 - `agent/`: super-agent workflow and orchestration.
 - `auth/`: account/session authentication and usage limits.
 - `coach/`: A/B/C conversation-coach domain logic.
-- `memory/`: relationship long-term memory.
+- `memory/`: account-thread history, dedup/reconciliation and person-scoped long-term memory.
+- `voice/`: deterministic audio validation and ASR boundary.
 - `model/`: model providers, routes, ChatGPT/Codex integration.
 - `rag/`: retrieval and knowledge-base integration.
 - `tools/`: deterministic tools exposed to the agent.
@@ -87,7 +88,26 @@ See [BACKEND_PACKAGES.md](BACKEND_PACKAGES.md) for the detailed package map and 
 
 ### Android mobile assistant
 
-`WeChat/QQ -> user copies/shares text -> apps/android -> backend coach -> overlay A/B/C -> user taps to copy`
+```text
+WeChat / QQ
+  -> NotificationListener incoming-message observation
+  -> Accessibility / on-device OCR foreground reconciliation
+  -> phone-local SQLite Outbox
+  -> backend source-key reconciliation
+  -> PostgreSQL account Thread
+  -> bounded recent context + person memory
+  -> deterministic quick coach workflow
+  -> A / B / C overlay
+  -> user chooses; LULU fills/copies but never sends
+```
+
+Background voice path:
+
+`voice notification -> durable VoiceIngestionQueue -> VoiceAudioSourceAdapter -> accessible audio or waiting_audio -> ASR -> replacesSourceKey/enrichment_key -> original voice placeholder enriched in place`
+
+The current primary adapter consumes notification-provided audio URIs. WeChat UI transcription is a separate explicit fallback, disabled by default.
+
+The capture, deduplication, retry, account scoping and voice-enrichment stages are deterministic workflows. LLM generation is intentionally limited to the final advice/reply step.
 
 ### Optional QQ bot
 

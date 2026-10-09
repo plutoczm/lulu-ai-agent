@@ -44,6 +44,26 @@ public class ConversationThreadController {
                 request.messages());
     }
 
+    @PostMapping("/sync")
+    public RelationshipThreadService.SyncResult sync(
+            @RequestBody SyncRequest request,
+            HttpServletRequest httpRequest) {
+        String fallback = request.conversationId();
+        String personId = StringUtils.hasText(request.personId())
+                ? request.personId()
+                : fallback;
+        String accountId = StringUtils.hasText(request.accountId())
+                ? request.accountId()
+                : fallback;
+
+        return threadService.syncMessages(
+                AuthSupport.scopedChatId(httpRequest, fallback),
+                AuthSupport.scopedChatId(httpRequest, personId),
+                AuthSupport.scopedChatId(httpRequest, accountId),
+                request.platform(),
+                request.messages());
+    }
+
     @GetMapping("/status")
     public RelationshipThreadService.ThreadStatus status(
             @RequestParam String conversationId,
@@ -109,5 +129,13 @@ public class ConversationThreadController {
             String accountId,
             String oldPersonId,
             String newPersonId
+    ) {}
+
+    public record SyncRequest(
+            String conversationId,
+            String personId,
+            String accountId,
+            String platform,
+            List<RelationshipThreadService.SyncMessage> messages
     ) {}
 }

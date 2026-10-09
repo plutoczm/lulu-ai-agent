@@ -80,6 +80,11 @@ app:
   memory:
     pgvector:
       enabled: ${PGVECTOR_ENABLED:true}
+  voice:
+    asr:
+      enabled: ${VOICE_ASR_ENABLED:true}
+      model: ${VOICE_ASR_MODEL:paraformer-realtime-v2}
+      max-bytes: ${VOICE_ASR_MAX_BYTES:6291456}
   codex:
     command: ${CODEX_COMMAND:codex.cmd}
     cwd: ${CODEX_WORKDIR:${LULU_PROJECT_ROOT:../..}}

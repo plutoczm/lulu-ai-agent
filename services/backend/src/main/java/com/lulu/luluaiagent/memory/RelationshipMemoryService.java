@@ -178,6 +178,35 @@ public class RelationshipMemoryService {
         return String.join("\n", lines);
     }
 
+    /**
+     * Fast deterministic context path for mobile coaching.
+     * Avoids a remote embedding request on every turn and simply uses the
+     * most recently persisted stable facts for this real person.
+     */
+    public String buildRecentFactsContext(String personId, int limit) {
+        validateScope(personId);
+        int bounded = Math.max(1, Math.min(limit, 8));
+        List<String> facts = jdbcTemplate.queryForList(
+                """
+                SELECT content
+                FROM relationship_memory
+                WHERE metadata->>'chat_id' = ?
+                ORDER BY metadata->>'created_at' DESC
+                LIMIT ?
+                """,
+                String.class,
+                personId,
+                bounded);
+        if (facts.isEmpty()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < facts.size(); i++) {
+            lines.add((i + 1) + ". " + facts.get(i));
+        }
+        return String.join("\n", lines);
+    }
+
     private boolean persistFact(
             String personId,
             String fact,

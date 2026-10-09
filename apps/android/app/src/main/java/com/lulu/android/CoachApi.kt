@@ -24,6 +24,29 @@ data class ReassignResult(
     val memoryFacts: Int
 )
 
+data class ChatSyncMessage(
+    val sender: String,
+    val text: String,
+    val time: String = "",
+    val contentType: String = "text",
+    val source: String,
+    val sourceKey: String = "",
+    val replacesSourceKey: String = "",
+    val observedAt: String
+)
+
+data class ChatSyncResult(
+    val inserted: Int,
+    val merged: Int,
+    val totalMessages: Int
+)
+
+data class VoiceTranscript(
+    val text: String,
+    val provider: String,
+    val model: String
+)
+
 object CoachApi {
     fun login(baseUrl: String, email: String, password: String): String {
         val body = JSONObject()
@@ -76,7 +99,7 @@ object CoachApi {
             .put("messages", parseMessages(sharedText))
 
         val json = postJson(
-            baseUrl + "/api/ai/coach/suggest",
+            baseUrl + "/api/ai/coach/suggest/quick",
             cookie,
             request
         )
@@ -131,6 +154,89 @@ object CoachApi {
             request
         )
         return parseThreadStatus(json)
+    }
+
+    fun syncMessages(
+        baseUrl: String,
+        cookie: String,
+        person: PersonProfile,
+        account: ContactAccount,
+        messages: List<ChatSyncMessage>
+    ): ChatSyncResult {
+        if (messages.isEmpty()) {
+            return ChatSyncResult(0, 0, 0)
+        }
+
+        val payload = JSONArray()
+        messages.forEach { message ->
+            payload.put(
+                JSONObject()
+                    .put("sender", message.sender)
+                    .put("text", message.text)
+                    .put("time", message.time)
+                    .put("contentType", message.contentType)
+                    .put("source", message.source)
+                    .put("sourceKey", message.sourceKey)
+                    .put("replacesSourceKey", message.replacesSourceKey)
+                    .put("observedAt", message.observedAt)
+            )
+        }
+
+        val request = JSONObject()
+            .put("conversationId", account.threadId)
+            .put("personId", person.id)
+            .put("accountId", account.id)
+            .put("platform", account.platform)
+            .put("messages", payload)
+
+        val json = postJson(
+            baseUrl + "/api/ai/coach/thread/sync",
+            cookie,
+            request
+        )
+        return ChatSyncResult(
+            inserted = json.optInt("inserted", 0),
+            merged = json.optInt("merged", 0),
+            totalMessages = json.optInt("totalMessages", 0)
+        )
+    }
+
+    fun transcribeVoice(
+        baseUrl: String,
+        cookie: String,
+        audio: ByteArray,
+        format: String,
+        sampleRate: Int? = null
+    ): VoiceTranscript {
+        require(audio.isNotEmpty()) { "语音文件为空" }
+
+        val request = JSONObject()
+            .put(
+                "audioBase64",
+                java.util.Base64.getEncoder().encodeToString(audio)
+            )
+            .put("format", format)
+        if (sampleRate != null && sampleRate > 0) {
+            request.put("sampleRate", sampleRate)
+        }
+
+        val json = postJson(
+            baseUrl + "/api/ai/voice/transcribe",
+            cookie,
+            request
+        )
+        val text = json.optString("text").trim()
+        if (text.isBlank()) {
+            throw IllegalStateException("语音识别没有返回文字")
+        }
+        return VoiceTranscript(
+            text = text,
+            provider = json.optString("provider", "dashscope"),
+            model = json.optString(
+                "model",
+                "paraformer-realtime-v2"
+            )
+        )
     }
 
     fun threadStatus(

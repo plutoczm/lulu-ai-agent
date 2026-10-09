@@ -22,6 +22,19 @@ public class ConversationCoachController {
     public ConversationCoachResponse suggest(
             @RequestBody ConversationCoachRequest request,
             HttpServletRequest httpRequest) {
+        return coachService.suggest(scope(request, httpRequest));
+    }
+
+    @PostMapping("/suggest/quick")
+    public ConversationCoachResponse suggestQuick(
+            @RequestBody ConversationCoachRequest request,
+            HttpServletRequest httpRequest) {
+        return coachService.suggestQuick(scope(request, httpRequest));
+    }
+
+    private ConversationCoachRequest scope(
+            ConversationCoachRequest request,
+            HttpServletRequest httpRequest) {
         String fallback = request.conversationId();
         String personId = StringUtils.hasText(request.personId())
                 ? request.personId()
@@ -30,7 +43,7 @@ public class ConversationCoachController {
                 ? request.accountId()
                 : fallback;
 
-        ConversationCoachRequest scoped = new ConversationCoachRequest(
+        return new ConversationCoachRequest(
                 request.platform(),
                 AuthSupport.scopedChatId(httpRequest, fallback),
                 AuthSupport.scopedChatId(httpRequest, personId),
@@ -41,6 +54,5 @@ public class ConversationCoachController {
                 request.goal(),
                 request.userStyle(),
                 request.messages());
-        return coachService.suggest(scoped);
     }
 }

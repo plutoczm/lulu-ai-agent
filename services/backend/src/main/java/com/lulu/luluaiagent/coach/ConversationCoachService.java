@@ -23,11 +23,26 @@ import java.util.List;
 public class ConversationCoachService {
 
     private final ChatClient chatClient;
+    private final ChatClient quickChatClient;
+    private final String quickModelName;
 
     private static final String SYSTEM_PROMPT = """
             你是“AI对话军师”，目标是在真实微信、QQ等聊天场景中，
             帮用户生成自然、可直接发送、保留双方选择权的回复。
             """;
+    private static final String QUICK_SYSTEM_PROMPT = """
+            你是“噜噜对话军师”的手机快回复引擎。
+            目标是在真实微信、QQ聊天场景中，几秒内给出三条可直接复制的短回复。
+            只根据可见聊天、人物长期事实和当前账号最近聊天判断，不读心、不编造。
+            aggressive：更主动、更明确推进，但不施压。
+            normal：自然、均衡，默认最推荐。
+            conservative：更克制，给对方更多空间。
+            三条必须明显不同，符合用户口吻，优先短句、自然、不油腻。
+            对方明确拒绝、不适或要求停止时，不得继续推进。
+            如果说话人或关键上下文不足，needsClarification=true，只问一个关键问题。
+            不要输出解释、Markdown或额外分析。
+            """;
+
     private static final String COACH_RULES = """
             规则来自 goutoujunshi 的核心实践：
             1. 先锁定谁是用户、谁是对方；不按左右、性别、语气猜身份。
@@ -61,6 +76,9 @@ public class ConversationCoachService {
     public ConversationCoachService(ModelRouter modelRouter) {
         this.chatClient = ChatClient.builder(modelRouter.coachPrimaryModel())
                 .build();
+        this.quickChatClient = ChatClient.builder(modelRouter.fastModel())
+                .build();
+        this.quickModelName = modelRouter.fastModelName();
     }
 
     public ConversationCoachResponse suggest(
@@ -87,6 +105,48 @@ public class ConversationCoachService {
                 .entity(ConversationCoachResponse.class);
 
         recordTurn(request);
+        return response;
+    }
+
+    public ConversationCoachResponse suggestQuick(
+            ConversationCoachRequest request) {
+        validate(request);
+        long totalStarted = System.nanoTime();
+
+        long memoryStarted = System.nanoTime();
+        String memoryContext = loadQuickMemory(request);
+        long memoryMs = elapsedMillis(memoryStarted);
+
+        long threadStarted = System.nanoTime();
+        String recentThreadContext = loadRecentThread(request, 12);
+        long threadMs = elapsedMillis(threadStarted);
+
+        long modelStarted = System.nanoTime();
+        QuickConversationCoachResponse quick = quickChatClient
+                .prompt()
+                .system(QUICK_SYSTEM_PROMPT)
+                .user(buildQuickUserPrompt(
+                        request,
+                        memoryContext,
+                        recentThreadContext))
+                .call()
+                .entity(QuickConversationCoachResponse.class);
+        long modelMs = elapsedMillis(modelStarted);
+
+        // The Android quick path persists visible messages through the
+        // durable ChatSyncOutbox -> thread sync workflow before this request.
+        // Persisting the same request here would duplicate the same screen
+        // observations under source=coach. The full /suggest endpoint still
+        // owns recordTurn() for clients that do not use the sync workflow.
+        ConversationCoachResponse response = toFullResponse(quick);
+        log.info(
+                "coach quick timing model={} memory={}ms thread={}ms " +
+                        "modelCall={}ms persistence=chat-sync-outbox total={}ms",
+                quickModelName,
+                memoryMs,
+                threadMs,
+                modelMs,
+                elapsedMillis(totalStarted));
         return response;
     }
 
@@ -141,6 +201,12 @@ public class ConversationCoachService {
     }
 
     private String loadRecentThread(ConversationCoachRequest request) {
+        return loadRecentThread(request, 30);
+    }
+
+    private String loadRecentThread(
+            ConversationCoachRequest request,
+            int limit) {
         if (relationshipThreadService == null
                 || !StringUtils.hasText(request.conversationId())) {
             return "";
@@ -149,9 +215,28 @@ public class ConversationCoachService {
         try {
             return relationshipThreadService.buildRecentContext(
                     request.conversationId(),
-                    30);
+                    limit);
         } catch (RuntimeException e) {
             log.warn("Unable to load relationship thread context: {}",
+                    e.getMessage());
+            return "";
+        }
+    }
+
+    private String loadQuickMemory(ConversationCoachRequest request) {
+        String personId = StringUtils.hasText(request.personId())
+                ? request.personId()
+                : request.conversationId();
+        if (relationshipMemoryService == null
+                || !StringUtils.hasText(personId)) {
+            return "";
+        }
+        try {
+            return relationshipMemoryService.buildRecentFactsContext(
+                    personId,
+                    4);
+        } catch (RuntimeException e) {
+            log.warn("Unable to load quick relationship memory: {}",
                     e.getMessage());
             return "";
         }
@@ -219,6 +304,94 @@ public class ConversationCoachService {
         builder.append("\n请给出这一轮最合适的回复方案。");
         return builder.toString();
     }
+
+    private String buildQuickUserPrompt(
+            ConversationCoachRequest request,
+            String memoryContext,
+            String recentThreadContext) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("平台：").append(value(request.platform())).append('\n');
+        builder.append("用户：").append(value(request.userAlias())).append('\n');
+        builder.append("对方：").append(value(request.otherAlias())).append('\n');
+        builder.append("关系阶段：")
+                .append(value(request.relationshipStage())).append('\n');
+        builder.append("本轮目标：")
+                .append(value(request.goal())).append('\n');
+        builder.append("回复风格：")
+                .append(value(request.userStyle())).append('\n');
+
+        if (StringUtils.hasText(memoryContext)) {
+            builder.append("\n人物长期事实（最近最多 4 条）：\n")
+                    .append(memoryContext)
+                    .append('\n');
+        }
+        if (StringUtils.hasText(recentThreadContext)) {
+            builder.append("\n当前账号最近聊天（最多 12 条）：\n")
+                    .append(recentThreadContext)
+                    .append('\n');
+        }
+
+        builder.append("\n本轮新复制聊天：\n");
+        for (ConversationCoachRequest.Message message : request.messages()) {
+            builder.append(value(message.sender()))
+                    .append("：")
+                    .append(value(message.text()))
+                    .append('\n');
+        }
+        builder.append("\n只生成 aggressive / normal / conservative 三条短回复。");
+        return builder.toString();
+    }
+
+    private ConversationCoachResponse toFullResponse(
+            QuickConversationCoachResponse quick) {
+        String aggressive = StringUtils.hasText(quick.aggressive())
+                ? quick.aggressive().trim()
+                : "";
+        String normal = StringUtils.hasText(quick.normal())
+                ? quick.normal().trim()
+                : "";
+        String conservative = StringUtils.hasText(quick.conservative())
+                ? quick.conservative().trim()
+                : "";
+
+        if (!quick.needsClarification()
+                && (!StringUtils.hasText(aggressive)
+                || !StringUtils.hasText(normal)
+                || !StringUtils.hasText(conservative))) {
+            throw new IllegalStateException(
+                    "Quick coach did not return complete A/B/C replies.");
+        }
+
+        return new ConversationCoachResponse(
+                quick.needsClarification(),
+                valueOrEmpty(quick.clarificationQuestion()),
+                "快速回复",
+                "",
+                normal,
+                List.of(
+                        new ConversationCoachResponse.ReplyOption(
+                                "A｜激进",
+                                aggressive,
+                                "更主动"),
+                        new ConversationCoachResponse.ReplyOption(
+                                "C｜保守",
+                                conservative,
+                                "更克制")),
+                new ConversationCoachResponse.Branches("", "", ""),
+                "",
+                List.of(),
+                List.of(),
+                List.of());
+    }
+
+    private long elapsedMillis(long started) {
+        return (System.nanoTime() - started) / 1_000_000;
+    }
+
+    private String valueOrEmpty(String text) {
+        return StringUtils.hasText(text) ? text.trim() : "";
+    }
+
     private String value(String text) {
         return StringUtils.hasText(text) ? text : "未提供";
     }

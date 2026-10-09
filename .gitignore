@@ -26,6 +26,7 @@ tools/cloudflared/cloudflared-linux-amd64
 **/dist-ssr/
 **/node_modules/
 **/.gradle/
+**/.kotlin/
 *.class
 *.log
 

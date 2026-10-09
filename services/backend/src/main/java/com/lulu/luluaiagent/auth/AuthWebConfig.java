@@ -31,6 +31,7 @@ public class AuthWebConfig implements WebMvcConfigurer {
                 .addPathPatterns(
                         "/ai/memory/**",
                         "/ai/coach/**",
+                        "/ai/voice/**",
                         "/ai/manus/**",
                         "/ai/tools/**");
     }

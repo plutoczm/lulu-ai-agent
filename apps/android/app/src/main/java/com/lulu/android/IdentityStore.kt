@@ -19,7 +19,8 @@ data class ContactAccount(
     val threadId: String,
     val platform: String,
     val alias: String,
-    val accountLabel: String
+    val accountLabel: String,
+    val chatTitle: String = ""
 ) {
     val platformLabel: String
         get() = if (platform == "qq") "QQ" else "微信"
@@ -111,10 +112,72 @@ object IdentityStore {
         return ActiveIdentity(person, account)
     }
 
+    /**
+     * Passive synchronization never guesses a contact. A chat is eligible
+     * only when exactly one bound account matches the visible notification
+     * or chat-window title.
+     */
+    fun identityForChatTitle(
+        context: Context,
+        platform: String,
+        chatTitle: String?
+    ): ActiveIdentity? {
+        val normalizedTitle = normalizeChatTitle(chatTitle)
+        if (normalizedTitle.isBlank()) return null
+
+        val platformAccounts = accounts(context)
+            .filter { it.platform == platform }
+
+        val exactMatches = platformAccounts.filter { account ->
+            val boundTitle = account.chatTitle
+                .ifBlank { account.alias }
+            normalizeChatTitle(boundTitle) == normalizedTitle
+        }
+        val matches = if (exactMatches.isNotEmpty()) {
+            exactMatches
+        } else {
+            // WeChat can decorate the visible chat title with emoji or
+            // prefixes while the explicitly bound title remains stable.
+            // Fuzzy containment is allowed only for an explicit chatTitle,
+            // never for a generic alias, and still must resolve uniquely.
+            platformAccounts.filter { account ->
+                if (account.chatTitle.isBlank()) {
+                    return@filter false
+                }
+                val bound = normalizeChatTitle(account.chatTitle)
+                bound.length >= 4 &&
+                    normalizedTitle.contains(bound)
+            }
+        }
+        if (matches.size != 1) return null
+
+        val account = matches.first()
+        val person = person(context, account.personId) ?: return null
+        return ActiveIdentity(person, account)
+    }
+
     fun setActiveAccount(context: Context, accountId: String) {
         prefs(context).edit()
             .putString(ACTIVE_ACCOUNT_ID, accountId)
             .apply()
+    }
+
+    fun bindChatTitle(
+        context: Context,
+        accountId: String,
+        chatTitle: String
+    ): ContactAccount? {
+        val normalized = chatTitle.trim()
+        if (normalized.isBlank()) return null
+
+        val items = accounts(context).toMutableList()
+        val index = items.indexOfFirst { it.id == accountId }
+        if (index < 0) return null
+
+        val updated = items[index].copy(chatTitle = normalized)
+        items[index] = updated
+        saveAccounts(context, items)
+        return updated
     }
 
     fun createPerson(
@@ -149,7 +212,8 @@ object IdentityStore {
             threadId = "android_" + platformKey + "_account_" + id,
             platform = platformKey,
             alias = alias.trim(),
-            accountLabel = accountLabel.trim()
+            accountLabel = accountLabel.trim(),
+            chatTitle = ""
         )
     }
 
@@ -214,7 +278,8 @@ object IdentityStore {
                 threadId = threadId,
                 platform = item.optString("platform", "wechat"),
                 alias = alias,
-                accountLabel = item.optString("accountLabel", "")
+                accountLabel = item.optString("accountLabel", ""),
+                chatTitle = item.optString("chatTitle", "")
             )
         }
         return result
@@ -257,12 +322,20 @@ object IdentityStore {
                     .put("platform", account.platform)
                     .put("alias", account.alias)
                     .put("accountLabel", account.accountLabel)
+                    .put("chatTitle", account.chatTitle)
             )
         }
         prefs(context).edit()
             .putString(ACCOUNTS, array.toString())
             .apply()
     }
+
+    private fun normalizeChatTitle(value: String?): String =
+        value.orEmpty()
+            .replace(Regex("""\s+"""), "")
+            .replace(Regex("""\(\d+\)$"""), "")
+            .trim()
+            .lowercase()
 
     private fun migrateLegacyIfNeeded(context: Context) {
         val current = prefs(context)
@@ -320,7 +393,8 @@ object IdentityStore {
                 threadId = threadId,
                 platform = item.optString("platform", "wechat"),
                 alias = alias,
-                accountLabel = ""
+                accountLabel = "",
+                chatTitle = ""
             )
             if (legacyId == legacyActive) {
                 newActiveAccountId = accountId

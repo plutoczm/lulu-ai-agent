@@ -1,23 +1,18 @@
 package com.lulu.luluaiagent.tools;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@SpringBootTest
 class WebSearchToolTest {
 
-    @Value("${search-api.api-key}")
-    private String searchApiKey;
-
     @Test
-    void searchWeb() {
-        WebSearchTool webSearchTool = new WebSearchTool(searchApiKey);
-        String query = "噜噜编程导航 codefather.cn";
-        String result = webSearchTool.searchWeb(query);
-        Assertions.assertNotNull(result);
+    void missingBaiduKeyReturnsDeterministicConfigurationMessage() {
+        WebSearchTool webSearchTool = new WebSearchTool("");
+
+        assertEquals(
+                "Baidu search is not configured. " +
+                        "Please set BAIDU_QIANFAN_API_KEY.",
+                webSearchTool.searchWeb("噜噜编程导航 codefather.cn"));
     }
 }

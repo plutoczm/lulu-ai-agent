@@ -9,9 +9,13 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Account-scoped recent-message storage with person-scoped long-term memory.
@@ -24,12 +28,15 @@ public class RelationshipThreadService {
 
     private final JdbcTemplate jdbcTemplate;
     private final RelationshipMemoryService memoryService;
+    private final RelationshipMemoryWriteService memoryWriteService;
 
     public RelationshipThreadService(
             JdbcTemplate jdbcTemplate,
-            RelationshipMemoryService memoryService) {
+            RelationshipMemoryService memoryService,
+            RelationshipMemoryWriteService memoryWriteService) {
         this.jdbcTemplate = jdbcTemplate;
         this.memoryService = memoryService;
+        this.memoryWriteService = memoryWriteService;
     }
 
     @PostConstruct
@@ -44,6 +51,11 @@ public class RelationshipThreadService {
                     sender TEXT NOT NULL,
                     message_text TEXT NOT NULL,
                     message_time TEXT,
+                    content_type TEXT NOT NULL DEFAULT 'text',
+                    source TEXT NOT NULL DEFAULT 'coach',
+                    source_key TEXT,
+                    enrichment_key TEXT,
+                    observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     fingerprint TEXT NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
@@ -61,6 +73,26 @@ public class RelationshipThreadService {
                 ADD COLUMN IF NOT EXISTS platform TEXT
                 """);
         jdbcTemplate.execute("""
+                ALTER TABLE relationship_thread_message
+                ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT 'text'
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE relationship_thread_message
+                ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'coach'
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE relationship_thread_message
+                ADD COLUMN IF NOT EXISTS source_key TEXT
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE relationship_thread_message
+                ADD COLUMN IF NOT EXISTS enrichment_key TEXT
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE relationship_thread_message
+                ADD COLUMN IF NOT EXISTS observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                """);
+        jdbcTemplate.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_relationship_thread_message
                 ON relationship_thread_message(chat_id, fingerprint)
                 """);
@@ -71,6 +103,16 @@ public class RelationshipThreadService {
         jdbcTemplate.execute("""
                 CREATE INDEX IF NOT EXISTS ix_relationship_thread_message_person
                 ON relationship_thread_message(person_id, account_id, id DESC)
+                """);
+        jdbcTemplate.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_relationship_thread_source_key
+                ON relationship_thread_message(chat_id, source_key)
+                WHERE source_key IS NOT NULL AND source_key <> ''
+                """);
+        jdbcTemplate.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_relationship_thread_enrichment_key
+                ON relationship_thread_message(chat_id, enrichment_key)
+                WHERE enrichment_key IS NOT NULL AND enrichment_key <> ''
                 """);
     }
 
@@ -106,7 +148,7 @@ public class RelationshipThreadService {
                 personId,
                 accountId,
                 platform,
-                tailMessages(safeMessages, MAX_RECENT_MESSAGES));
+                safeMessages);
         return new ThreadStatus(
                 recentMessageCount(threadId),
                 memoryService.count(personId),
@@ -138,7 +180,7 @@ public class RelationshipThreadService {
                 request.relationshipStage(),
                 request.goal(),
                 request.messages());
-        memoryService.rememberFromMessage(
+        memoryWriteService.rememberCoachTurn(
                 personId,
                 accountId,
                 request.platform(),
@@ -258,6 +300,391 @@ public class RelationshipThreadService {
                 memoryService.count(newPersonId));
     }
 
+    /**
+     * Incrementally stores messages observed outside the coach flow.
+     *
+     * Full history is retained. Context builders remain bounded separately,
+     * so storage completeness does not increase prompt size.
+     */
+    public SyncResult syncMessages(
+            String threadId,
+            String personId,
+            String accountId,
+            String platform,
+            List<SyncMessage> messages) {
+        validateScope(threadId, "conversationId");
+        validateScope(personId, "personId");
+        validateScope(accountId, "accountId");
+
+        if (messages == null || messages.isEmpty()) {
+            return new SyncResult(0, 0, recentMessageCount(threadId));
+        }
+
+        int inserted = 0;
+        int merged = 0;
+        List<ConversationCoachRequest.Message> memoryCandidates =
+                new ArrayList<>();
+        Map<String, Integer> screenBatchCounts = new HashMap<>();
+        for (SyncMessage message : messages) {
+            if (message == null
+                    || !StringUtils.hasText(message.text())
+                    || !StringUtils.hasText(message.source())
+                    || !message.source().contains("screen")) {
+                continue;
+            }
+            String semanticKey =
+                    value(message.sender()) + "\n" + message.text().trim();
+            screenBatchCounts.merge(semanticKey, 1, Integer::sum);
+        }
+
+        for (SyncMessage message : messages) {
+            if (message == null || !StringUtils.hasText(message.text())) {
+                continue;
+            }
+
+            String sender = value(message.sender());
+            String text = message.text().trim();
+            String time = value(message.time());
+            String contentType = StringUtils.hasText(message.contentType())
+                    ? message.contentType().trim()
+                    : "text";
+            String source = StringUtils.hasText(message.source())
+                    ? message.source().trim()
+                    : "sync";
+            String sourceKey = StringUtils.hasText(message.sourceKey())
+                    ? message.sourceKey().trim()
+                    : "";
+            String replacesSourceKey =
+                    StringUtils.hasText(message.replacesSourceKey())
+                            ? message.replacesSourceKey().trim()
+                            : "";
+            Instant observedAt = parseInstant(message.observedAt());
+
+            // A voice transcript can enrich an existing notification row.
+            // The enrichment key is stored separately so a retry after an
+            // ambiguous network response is idempotent without discarding
+            // the original notification source key.
+            if ("voice_transcript".equals(contentType)
+                    && StringUtils.hasText(sourceKey)) {
+                List<Long> alreadyEnriched = jdbcTemplate.queryForList("""
+                        SELECT id
+                        FROM relationship_thread_message
+                        WHERE chat_id = ?
+                          AND enrichment_key = ?
+                        LIMIT 1
+                        """,
+                        Long.class,
+                        threadId,
+                        sourceKey);
+                if (!alreadyEnriched.isEmpty()) {
+                    merged++;
+                    continue;
+                }
+            }
+
+            if ("voice_transcript".equals(contentType)
+                    && StringUtils.hasText(replacesSourceKey)) {
+                int enriched = jdbcTemplate.update("""
+                        UPDATE relationship_thread_message
+                        SET person_id = ?,
+                            account_id = ?,
+                            platform = ?,
+                            message_text = ?,
+                            message_time = ?,
+                            content_type = 'voice_transcript',
+                            source = CASE
+                                WHEN POSITION(? IN source) > 0
+                                THEN source
+                                ELSE source || '+' || ?
+                            END,
+                            enrichment_key = NULLIF(?, ''),
+                            observed_at = GREATEST(observed_at, ?)
+                        WHERE chat_id = ?
+                          AND sender = ?
+                          AND source_key = ?
+                          AND content_type = 'voice'
+                        """,
+                        personId,
+                        accountId,
+                        value(platform),
+                        text,
+                        time,
+                        source,
+                        source,
+                        sourceKey,
+                        Timestamp.from(observedAt),
+                        threadId,
+                        sender,
+                        replacesSourceKey);
+                if (enriched > 0) {
+                    merged++;
+                    memoryCandidates.add(
+                            new ConversationCoachRequest.Message(
+                                    sender,
+                                    text,
+                                    time));
+                    continue;
+                }
+            }
+
+            if ("voice_transcript".equals(contentType)) {
+                List<Long> voicePlaceholders = jdbcTemplate.queryForList("""
+                        SELECT id
+                        FROM relationship_thread_message
+                        WHERE chat_id = ?
+                          AND sender = ?
+                          AND content_type = 'voice'
+                          AND observed_at >= ?
+                          AND observed_at <= ?
+                        ORDER BY observed_at DESC, id DESC
+                        LIMIT 2
+                        """,
+                        Long.class,
+                        threadId,
+                        sender,
+                        Timestamp.from(observedAt.minusSeconds(180)),
+                        Timestamp.from(observedAt.plusSeconds(180)));
+                if (voicePlaceholders.size() == 1) {
+                    jdbcTemplate.update("""
+                            UPDATE relationship_thread_message
+                            SET person_id = ?,
+                                account_id = ?,
+                                platform = ?,
+                                message_text = ?,
+                                message_time = ?,
+                                content_type = 'voice_transcript',
+                                source = CASE
+                                    WHEN POSITION(? IN source) > 0
+                                    THEN source
+                                    ELSE source || '+' || ?
+                                END,
+                                source_key = COALESCE(
+                                    NULLIF(source_key, ''),
+                                    NULLIF(?, '')
+                                ),
+                                enrichment_key = NULLIF(?, ''),
+                                observed_at = GREATEST(observed_at, ?),
+                                fingerprint = ?
+                            WHERE id = ?
+                            """,
+                            personId,
+                            accountId,
+                            value(platform),
+                            text,
+                            time,
+                            source,
+                            source,
+                            sourceKey,
+                            sourceKey,
+                            Timestamp.from(observedAt),
+                            sha256("voice-transcript\n" + sourceKey + "\n" + text),
+                            voicePlaceholders.getFirst());
+                    merged++;
+                    memoryCandidates.add(
+                            new ConversationCoachRequest.Message(
+                                    sender,
+                                    text,
+                                    time));
+                    continue;
+                }
+            }
+
+            // OCR can recognize a slightly different set of neighboring
+            // lines on consecutive captures. For a screen observation that
+            // occurs only once in this batch, merge the exact sender/text
+            // seen on another screen capture during a very short window.
+            // If the same sender/text appears twice in this capture, keep both
+            // instances distinct rather than guessing.
+            String screenSemanticKey = sender + "\n" + text;
+            if (source.contains("screen")
+                    && screenBatchCounts.getOrDefault(
+                            screenSemanticKey, 0) == 1) {
+                List<Long> sameScreenMatches = jdbcTemplate.queryForList("""
+                        SELECT id
+                        FROM relationship_thread_message
+                        WHERE chat_id = ?
+                          AND sender = ?
+                          AND message_text = ?
+                          AND observed_at >=
+                              NOW() - INTERVAL '45 seconds'
+                          AND POSITION('screen' IN source) > 0
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        Long.class,
+                        threadId,
+                        sender,
+                        text);
+                if (!sameScreenMatches.isEmpty()) {
+                    jdbcTemplate.update("""
+                            UPDATE relationship_thread_message
+                            SET person_id = ?,
+                                account_id = ?,
+                                platform = ?,
+                                content_type = CASE
+                                    WHEN content_type = 'unknown'
+                                    THEN ?
+                                    ELSE content_type
+                                END,
+                                source = CASE
+                                    WHEN POSITION(? IN source) > 0
+                                    THEN source
+                                    ELSE source || '+' || ?
+                                END,
+                                source_key = CASE
+                                    WHEN NULLIF(?, '') IS NOT NULL
+                                    THEN ?
+                                    ELSE source_key
+                                END,
+                                observed_at = GREATEST(observed_at, ?)
+                            WHERE id = ?
+                            """,
+                            personId,
+                            accountId,
+                            value(platform),
+                            contentType,
+                            source,
+                            source,
+                            sourceKey,
+                            sourceKey,
+                            Timestamp.from(observedAt),
+                            sameScreenMatches.getFirst());
+                    merged++;
+                    continue;
+                }
+            }
+
+            // Cross-source reconciliation: notifications can arrive long
+            // before the user opens the chat. Exact text/sender matches are
+            // merged across notification <-> screen observations for up to
+            // 24 hours. Same-screen observations are handled above.
+            List<Long> recentMatches = jdbcTemplate.queryForList("""
+                    SELECT id
+                    FROM relationship_thread_message
+                    WHERE chat_id = ?
+                      AND sender = ?
+                      AND message_text = ?
+                      AND observed_at >= NOW() - INTERVAL '24 hours'
+                      AND (
+                          (? LIKE '%screen%'
+                           AND POSITION('notification' IN source) > 0)
+                          OR
+                          (? = 'notification'
+                           AND POSITION('screen' IN source) > 0)
+                      )
+                      AND POSITION(? IN source) = 0
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    Long.class,
+                    threadId,
+                    sender,
+                    text,
+                    source,
+                    source,
+                    source);
+            if (!recentMatches.isEmpty()) {
+                jdbcTemplate.update("""
+                        UPDATE relationship_thread_message
+                        SET person_id = ?,
+                            account_id = ?,
+                            platform = ?,
+                            content_type = CASE
+                                WHEN content_type = 'unknown'
+                                THEN ?
+                                ELSE content_type
+                            END,
+                            source = CASE
+                                WHEN POSITION(? IN source) > 0
+                                THEN source
+                                ELSE source || '+' || ?
+                            END,
+                            source_key = CASE
+                                WHEN (source_key IS NULL OR source_key = '')
+                                THEN NULLIF(?, '')
+                                ELSE source_key
+                            END,
+                            observed_at = GREATEST(observed_at, ?)
+                        WHERE id = ?
+                        """,
+                        personId,
+                        accountId,
+                        value(platform),
+                        contentType,
+                        source,
+                        source,
+                        sourceKey,
+                        Timestamp.from(observedAt),
+                        recentMatches.get(0));
+                merged++;
+                continue;
+            }
+
+            String fingerprint = StringUtils.hasText(sourceKey)
+                    ? sha256("source-key\n" + sourceKey)
+                    : sha256(sender + "\n" + text + "\n" + time);
+            String enrichmentKey = "voice_transcript".equals(contentType)
+                    ? sourceKey
+                    : "";
+
+            int rows = jdbcTemplate.update("""
+                    INSERT INTO relationship_thread_message
+                        (chat_id, person_id, account_id, platform,
+                         sender, message_text, message_time,
+                         content_type, source, source_key, enrichment_key,
+                         observed_at, fingerprint)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''),
+                            NULLIF(?, ''), ?, ?)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    threadId,
+                    personId,
+                    accountId,
+                    value(platform),
+                    sender,
+                    text,
+                    time,
+                    contentType,
+                    source,
+                    sourceKey,
+                    enrichmentKey,
+                    Timestamp.from(observedAt),
+                    fingerprint);
+            if (rows > 0) {
+                inserted++;
+                if ("text".equals(contentType)
+                        || "voice_transcript".equals(contentType)) {
+                    memoryCandidates.add(
+                            new ConversationCoachRequest.Message(
+                                    sender,
+                                    text,
+                                    time));
+                }
+            } else {
+                merged++;
+            }
+        }
+
+        if (!memoryCandidates.isEmpty()) {
+            String memoryInput = formatForMemory(
+                    platform,
+                    "增量同步联系人",
+                    "未提供",
+                    "后台增量同步",
+                    memoryCandidates);
+            memoryWriteService.rememberCoachTurn(
+                    personId,
+                    accountId,
+                    platform,
+                    memoryInput);
+        }
+
+        return new SyncResult(
+                inserted,
+                merged,
+                recentMessageCount(threadId));
+    }
+
     private void appendMessages(
             String threadId,
             String personId,
@@ -278,12 +705,19 @@ public class RelationshipThreadService {
             jdbcTemplate.update("""
                     INSERT INTO relationship_thread_message
                         (chat_id, person_id, account_id, platform,
-                         sender, message_text, message_time, fingerprint)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                         sender, message_text, message_time,
+                         content_type, source, observed_at, fingerprint)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'text', 'coach', NOW(), ?)
                     ON CONFLICT (chat_id, fingerprint) DO UPDATE
                     SET person_id = EXCLUDED.person_id,
                         account_id = EXCLUDED.account_id,
-                        platform = EXCLUDED.platform
+                        platform = EXCLUDED.platform,
+                        source = CASE
+                            WHEN POSITION('coach' IN relationship_thread_message.source) > 0
+                            THEN relationship_thread_message.source
+                            ELSE relationship_thread_message.source || '+coach'
+                        END,
+                        observed_at = NOW()
                     """,
                     threadId,
                     personId,
@@ -294,21 +728,6 @@ public class RelationshipThreadService {
                     time,
                     fingerprint);
         }
-
-        jdbcTemplate.update("""
-                DELETE FROM relationship_thread_message
-                WHERE chat_id = ?
-                  AND id NOT IN (
-                      SELECT id
-                      FROM relationship_thread_message
-                      WHERE chat_id = ?
-                      ORDER BY id DESC
-                      LIMIT ?
-                  )
-                """,
-                threadId,
-                threadId,
-                MAX_RECENT_MESSAGES);
     }
 
     private int recentMessageCount(String threadId) {
@@ -356,6 +775,17 @@ public class RelationshipThreadService {
         return StringUtils.hasText(text) ? text.trim() : "未提供";
     }
 
+    private Instant parseInstant(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Instant.now();
+        }
+        try {
+            return Instant.parse(value.trim());
+        } catch (Exception ignored) {
+            return Instant.now();
+        }
+    }
+
     private void validateScope(String id, String name) {
         if (!StringUtils.hasText(id)) {
             throw new IllegalArgumentException(name + " is required");
@@ -382,5 +812,41 @@ public class RelationshipThreadService {
             int movedMemoryFacts,
             int recentMessages,
             int memoryFacts
+    ) {}
+
+    public record SyncMessage(
+            String sender,
+            String text,
+            String time,
+            String contentType,
+            String source,
+            String sourceKey,
+            String replacesSourceKey,
+            String observedAt
+    ) {
+        public SyncMessage(
+                String sender,
+                String text,
+                String time,
+                String contentType,
+                String source,
+                String sourceKey,
+                String observedAt) {
+            this(
+                    sender,
+                    text,
+                    time,
+                    contentType,
+                    source,
+                    sourceKey,
+                    "",
+                    observedAt);
+        }
+    }
+
+    public record SyncResult(
+            int inserted,
+            int merged,
+            int totalMessages
     ) {}
 }

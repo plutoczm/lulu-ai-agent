@@ -10,7 +10,8 @@ com.lulu.luluaiagent
 ├─ auth/         Account, session, authorization and usage limits
 ├─ coach/        Conversation-coach request/response and A/B/C generation
 ├─ controller/   HTTP API boundary; keep controllers thin
-├─ memory/       User-scoped relationship memory backed by PGVector
+├─ memory/       Account Thread history + person-scoped PGVector memory
+├─ voice/        Audio validation and ASR service
 ├─ model/        Model routing and provider integrations
 │  ├─ chatgpt/   ChatGPT OAuth / Codex integration
 │  └─ runtime/   Provider registry and runtime routing model
@@ -47,7 +48,9 @@ Controllers should not contain product decisions, prompt construction, database 
 | Change login/session behavior | `auth/` |
 | Add a model/provider or routing rule | `model/` |
 | Change ChatGPT/Codex integration | `model/chatgpt/` |
+| Change account chat sync / dedup / voice enrichment | `memory/RelationshipThreadService.java` |
 | Change long-term relationship memory | `memory/` |
+| Change voice ASR validation/provider boundary | `voice/`, `controller/VoiceTranscriptionController.java` |
 | Change Bailian/local knowledge retrieval | `rag/` |
 | Add a deterministic Agent tool | `tools/` |
 | Change repository/runtime paths | `config/ProjectPaths.java` |

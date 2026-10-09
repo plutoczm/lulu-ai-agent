@@ -88,10 +88,12 @@ The backend is the single source of business logic. Web, Android and QQ Bot are 
 - Axios
 
 **Android**
-- Kotlin
-- Android overlay
-- ACTION_SEND / PROCESS_TEXT
-- System clipboard
+- Kotlin + Android overlay
+- NotificationListener + AccessibilityService
+- On-device ML Kit Chinese OCR fallback
+- SQLite durable outbox / voice-ingestion queue
+- Background VoiceAudioSourceAdapter + DashScope ASR; UI transcription is explicit fallback only
+- A/B/C selection fills/copies text only; never auto-sends
 
 **Channel / tools**
 - Tencent QQ Bot SDK
@@ -139,6 +141,24 @@ Build the Web client:
 cd apps\web
 npm ci
 npm run build
+```
+
+Build the Android debug APK with the repository-local toolchain:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev\build-android.ps1
+```
+
+Run Android lint:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev\build-android.ps1 -Task ':app:lintDebug'
+```
+
+Run backend tests with the project Java 21 environment:
+
+```powershell
+.\mvnw.cmd -pl services/backend test
 ```
 
 ## Documentation

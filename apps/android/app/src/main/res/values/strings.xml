@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">噜噜</string>
+    <string name="accessibility_description">用于在微信或 QQ 前台聊天界面发生变化时低频同步已经显示的聊天气泡，并在你点击悬浮“噜”时读取当前页面、识别可见文字和语音转写；不读取未发送输入草稿，不自动发送消息。</string>
 </resources>

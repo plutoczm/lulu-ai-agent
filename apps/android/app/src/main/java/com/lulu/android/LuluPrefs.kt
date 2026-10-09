@@ -6,6 +6,8 @@ object LuluPrefs {
     private const val FILE = "lulu_android"
     private const val BASE_URL = "base_url"
     private const val COOKIE = "session_cookie"
+    private const val BACKGROUND_VOICE_ENABLED = "background_voice_enabled"
+    private const val VOICE_UI_FALLBACK_ENABLED = "voice_ui_fallback_enabled"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -22,5 +24,23 @@ object LuluPrefs {
 
     fun setCookie(context: Context, value: String) {
         prefs(context).edit().putString(COOKIE, value).apply()
+    }
+
+    fun backgroundVoiceEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(BACKGROUND_VOICE_ENABLED, true)
+
+    fun setBackgroundVoiceEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit()
+            .putBoolean(BACKGROUND_VOICE_ENABLED, enabled)
+            .apply()
+    }
+
+    fun voiceUiFallbackEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(VOICE_UI_FALLBACK_ENABLED, false)
+
+    fun setVoiceUiFallbackEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit()
+            .putBoolean(VOICE_UI_FALLBACK_ENABLED, enabled)
+            .apply()
     }
 }
